@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use std::collections::VecDeque;
 
 pub struct FastDeque<T> {
     collection: VecDeque<Vec<T>>,
@@ -16,7 +16,7 @@ impl<T> FastDeque<T> {
     pub fn split_off(&mut self, mut amount: usize) -> Vec<Vec<T>> {
         let mut result = Vec::new();
         while amount > 0 {
-            let mut front = match self.collection.pop() {
+            let mut front = match self.collection.pop_front() {
                 Some(f) => f,
                 None => break,
             };
@@ -61,7 +61,7 @@ impl<T> FastDeque<T> {
     }
 
     pub fn peek_head(&self) -> Option<&T> {
-        self.collection.peek().and_then(|v| v.first())
+        self.collection.front().and_then(|v| v.first())
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &T> {
@@ -75,28 +75,5 @@ impl<T> std::iter::Extend<T> for FastDeque<T> {
         I: IntoIterator<Item = T>,
     {
         self.give(iter.into_iter().collect());
-    }
-}
-
-impl<T> ParallelExtend<T> for FastDeque<T>
-where
-    T: Send + Sync,
-{
-    fn par_extend<I>(&mut self, par_iter: I)
-    where
-        I: IntoParallelIterator<Item = T>,
-    {
-        par_iter
-            .into_par_iter()
-            .fold(
-                || Vec::new(),
-                |mut vec, item| {
-                    vec.push(item);
-                    vec
-                },
-            )
-            .collect::<Vec<_>>()
-            .into_iter()
-            .for_each(|vec| self.give(vec))
     }
 }
