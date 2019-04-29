@@ -1,8 +1,8 @@
 [package]
-name = "stitch"
+name = "stitches"
 description = "Search spaces to solve math problems fast"
 license = "MIT"
-repository = "https://github.com/shelbyd/stitch"
+repository = "https://github.com/shelbyd/stitches"
 version = "0.1.0"
 authors = ["Shelby Doolittle <shelby@shelbyd.com>"]
 edition = "2018"
