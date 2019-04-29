@@ -2,14 +2,14 @@ use crate::prelude::*;
 
 pub struct FastDeque<T> {
     collection: VecDeque<Vec<T>>,
-    threads: usize,
+    suggested_outer_len: usize,
 }
 
 impl<T> FastDeque<T> {
-    pub fn new(threads: usize) -> FastDeque<T> {
+    pub fn new(suggested_outer_len: usize) -> FastDeque<T> {
         FastDeque {
             collection: VecDeque::new(),
-            threads,
+            suggested_outer_len,
         }
     }
 
@@ -26,7 +26,7 @@ impl<T> FastDeque<T> {
             }
             amount -= front.len();
             result.push(front);
-            if self.collection.len() < self.threads {
+            if self.collection.len() < self.suggested_outer_len {
                 break;
             }
         }
@@ -53,7 +53,7 @@ impl<T> FastDeque<T> {
     }
 
     pub fn give(&mut self, mut vec: Vec<T>) {
-        if self.collection.len() < self.threads {
+        if self.collection.len() < self.suggested_outer_len {
             self.collection
                 .push_back(vec.split_off(vec.len() / 2).into());
         }
