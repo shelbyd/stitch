@@ -1,7 +1,2 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+pub mod tree_search;
+pub use tree_search::*;
