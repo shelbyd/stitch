@@ -1,27 +1,32 @@
 #![feature(step_trait)]
 
+pub mod reporter;
+pub use reporter::*;
+
 pub mod tree_search;
 pub use tree_search::*;
 
 mod fast_deque;
 
-pub struct Stitches<P: Problem> {
+pub struct Stitches<P: Problem, R: Reporter<P>> {
     mutable: Mutable<P::Space, P::Out>,
     problem: P,
+    reporter: R,
 }
 
-impl<P: Problem> Stitches<P> {
-    pub fn new(problem: P) -> Self
+impl<P: Problem, R: Reporter<P>> Stitches<P, R> {
+    pub fn new(problem: P, reporter: R) -> Self
     where
         P::Space: Default,
         P::Out: Default,
     {
         Stitches {
-            problem,
             mutable: Mutable {
                 space: P::Space::default(),
                 out: P::Out::default(),
             },
+            problem,
+            reporter,
         }
     }
 
@@ -30,6 +35,7 @@ impl<P: Problem> Stitches<P> {
         P: Send + Sync + 'static,
         P::Out: Send + 'static,
         P::Space: Send + 'static,
+        R: Send + 'static,
     {
         use spaces::Space;
         use std::sync::{mpsc, Arc, Mutex};
@@ -38,6 +44,7 @@ impl<P: Problem> Stitches<P> {
 
         let mutable = Arc::new(Mutex::new(self.mutable));
         let problem = Arc::new(self.problem);
+        let reporter = self.reporter;
 
         for _ in 0..num_cpus::get() {
             let mutable = mutable.clone();
@@ -64,6 +71,16 @@ impl<P: Problem> Stitches<P> {
                 }
             });
         }
+
+        std::thread::spawn(move || {
+            let mut reporter = reporter;
+            let mutable = mutable.clone();
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(1));
+                let locked = mutable.lock().unwrap();
+                reporter.report_on(&locked.space, &locked.out);
+            }
+        });
 
         recv.into_iter()
     }
@@ -92,7 +109,7 @@ pub mod spaces {
         fn batch(&mut self, n: usize) -> Option<Self::Batch>;
     }
 
-    #[derive(Default)]
+    #[derive(Debug, Default)]
     pub struct LinearSpace<T> {
         unchecked: T,
     }

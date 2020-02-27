@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use stitches::spaces::LinearSpace;
-use stitches::{Problem, Stitches};
+use stitches::{StdoutReporter, Problem, Stitches};
 
 struct MultiplicativePersistence;
 
@@ -47,7 +47,7 @@ fn persistence(n: u64) -> u8 {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let stitches = Stitches::new(MultiplicativePersistence);
+    let stitches = Stitches::new(MultiplicativePersistence, StdoutReporter);
 
     for result in stitches.results() {
         dbg!(result);
