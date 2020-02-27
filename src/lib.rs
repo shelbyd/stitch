@@ -1,5 +1,8 @@
 #![feature(step_trait)]
 
+use metered::{clear::Clear, measure, HitCount};
+use std::time::{Duration, Instant};
+
 pub mod reporter;
 pub use reporter::*;
 
@@ -46,10 +49,13 @@ impl<P: Problem, R: Reporter<P>> Stitches<P, R> {
         let problem = Arc::new(self.problem);
         let reporter = self.reporter;
 
+        let stats = Arc::new(Stats::default());
+
         for _ in 0..num_cpus::get() {
             let mutable = mutable.clone();
             let send = send.clone();
             let problem = problem.clone();
+            let stats = stats.clone();
 
             std::thread::spawn(move || loop {
                 let (batch, mut out) = {
@@ -61,7 +67,9 @@ impl<P: Problem, R: Reporter<P>> Stitches<P, R> {
                     (batch, lock.out.clone())
                 };
                 for candidate in batch {
-                    let new_result = match problem.check(candidate, &out) {
+                    let count = &stats.count;
+                    let result = measure!(count, { problem.check(candidate, &out) });
+                    let new_result = match result {
                         None => continue,
                         Some(result) => result,
                     };
@@ -73,12 +81,14 @@ impl<P: Problem, R: Reporter<P>> Stitches<P, R> {
         }
 
         std::thread::spawn(move || {
+            let stats = stats.clone();
             let mut reporter = reporter;
             let mutable = mutable.clone();
             loop {
-                std::thread::sleep(std::time::Duration::from_secs(1));
+                std::thread::sleep(Duration::from_secs(1));
                 let locked = mutable.lock().unwrap();
-                reporter.report_on(&locked.space, &locked.out);
+                reporter.report_on(&locked.space, &locked.out, &stats);
+                stats.clear();
             }
         });
 
@@ -100,6 +110,31 @@ pub trait Problem {
         candidate: <<<Self as Problem>::Space as spaces::Space>::Batch as IntoIterator>::Item,
         latest_out: &<Self as Problem>::Out,
     ) -> Option<Self::Out>;
+}
+
+#[derive(Debug)]
+pub struct Stats {
+    recording_since: Instant,
+    count: HitCount,
+}
+
+impl Default for Stats {
+    fn default() -> Self {
+        Stats {
+            recording_since: Instant::now(),
+            count: HitCount::default(),
+        }
+    }
+}
+
+impl Stats {
+    fn clear(&self) {
+        self.count.clear();
+    }
+
+    pub fn throughput(&self) -> f64 {
+        self.count.0.get() as f64 / self.recording_since.elapsed().as_secs_f64()
+    }
 }
 
 pub mod spaces {

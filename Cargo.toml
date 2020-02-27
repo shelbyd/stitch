@@ -8,5 +8,7 @@ authors = ["Shelby Doolittle <shelby@shelbyd.com>"]
 edition = "2018"
 
 [dependencies]
+human_format = "1.0.3"
+metered = "0.3.0"
 num_cpus = "1.0"
 rayon = "1.0.3"

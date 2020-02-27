@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use stitches::spaces::LinearSpace;
-use stitches::{StdoutReporter, Problem, Stitches};
+use stitches::{Problem, StdoutReporter, Stitches};
 
 struct MultiplicativePersistence;
 
