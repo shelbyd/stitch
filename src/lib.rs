@@ -1,3 +1,5 @@
+#![feature(step_trait)]
+
 pub mod tree_search;
 pub use tree_search::*;
 
@@ -45,7 +47,7 @@ impl<P: Problem> Stitches<P> {
             std::thread::spawn(move || loop {
                 let (batch, mut out) = {
                     let mut lock = mutable.lock().unwrap();
-                    let batch = match lock.space.pluck(100) {
+                    let batch = match lock.space.batch(100) {
                         None => break,
                         Some(i) => i,
                     };
@@ -78,58 +80,34 @@ pub trait Problem {
 
     fn check(
         &self,
-        candidate: <<Self as Problem>::Space as spaces::Space>::Candidate,
+        candidate: <<<Self as Problem>::Space as spaces::Space>::Batch as IntoIterator>::Item,
         latest_out: &<Self as Problem>::Out,
     ) -> Option<Self::Out>;
 }
 
 pub mod spaces {
     pub trait Space {
-        type Candidate;
+        type Batch: IntoIterator;
 
-        fn pluck(&mut self, n: usize) -> Option<Box<dyn Iterator<Item = Self::Candidate>>>;
+        fn batch(&mut self, n: usize) -> Option<Self::Batch>;
     }
 
-    pub struct LinearSpace<T: Linear> {
+    #[derive(Default)]
+    pub struct LinearSpace<T> {
         unchecked: T,
     }
 
-    impl<T: Linear> Default for LinearSpace<T> {
-        fn default() -> Self {
-            Self {
-                unchecked: T::start(),
-            }
-        }
-    }
+    impl<T> Space for LinearSpace<T>
+    where
+        T: Clone + std::iter::Step,
+    {
+        type Batch = core::ops::Range<T>;
 
-    impl<T: Linear> Space for LinearSpace<T> {
-        type Candidate = T;
-
-        fn pluck(&mut self, n: usize) -> Option<Box<dyn Iterator<Item = T>>> {
-            let next = self.unchecked.increment(n)?;
-            let result = self.unchecked.iter_to(&next);
+        fn batch(&mut self, n: usize) -> Option<Self::Batch> {
+            let next = self.unchecked.add_usize(n)?;
+            let result = self.unchecked.clone()..next.clone();
             self.unchecked = next;
-            result
-        }
-    }
-
-    pub trait Linear: Sized {
-        fn start() -> Self;
-        fn increment(&self, n: usize) -> Option<Self>;
-        fn iter_to(&self, next: &Self) -> Option<Box<dyn Iterator<Item = Self>>>;
-    }
-
-    impl Linear for u64 {
-        fn start() -> Self {
-            0
-        }
-
-        fn increment(&self, n: usize) -> Option<Self> {
-            self.checked_add(n as u64)
-        }
-
-        fn iter_to(&self, next: &Self) -> Option<Box<dyn Iterator<Item = Self>>> {
-            Some(Box::new((*self..*next).into_iter()))
+            Some(result)
         }
     }
 }
