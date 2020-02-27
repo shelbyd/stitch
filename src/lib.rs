@@ -3,62 +3,61 @@ pub use tree_search::*;
 
 mod fast_deque;
 
-pub struct Stitches<S: spaces::Space, State, C> {
-    mutable: Mutable<S, State>,
-    checker: C,
+pub struct Stitches<P: Problem> {
+    mutable: Mutable<P::Space, P::Out>,
+    problem: P,
 }
 
-impl<S: spaces::Space, State, C> Stitches<S, State, C>
-where
-    C: Checker<S::Candidate, State>,
-{
-    pub fn new(space: S, checker: C) -> Self
+impl<P: Problem> Stitches<P> {
+    pub fn new(problem: P) -> Self
     where
-        State: Default,
+        P::Space: Default,
+        P::Out: Default,
     {
         Stitches {
+            problem,
             mutable: Mutable {
-                state: State::default(),
-                space,
+                space: P::Space::default(),
+                out: P::Out::default(),
             },
-            checker,
         }
     }
 
-    pub fn results(mut self) -> impl Iterator<Item = State>
+    pub fn results(self) -> impl Iterator<Item = P::Out>
     where
-        State: Send + Clone + 'static,
-        S: 'static,
-        C: Send + Sync + 'static,
+        P: Send + Sync + 'static,
+        P::Out: Send + 'static,
+        P::Space: Send + 'static,
     {
+        use spaces::Space;
         use std::sync::{mpsc, Arc, Mutex};
 
         let (send, recv) = mpsc::channel();
 
         let mutable = Arc::new(Mutex::new(self.mutable));
-        let checker = Arc::new(self.checker);
+        let problem = Arc::new(self.problem);
 
         for _ in 0..num_cpus::get() {
             let mutable = mutable.clone();
             let send = send.clone();
-            let checker = checker.clone();
+            let problem = problem.clone();
 
             std::thread::spawn(move || loop {
-                let (batch, mut state) = {
+                let (batch, mut out) = {
                     let mut lock = mutable.lock().unwrap();
                     let batch = match lock.space.pluck(100) {
                         None => break,
                         Some(i) => i,
                     };
-                    (batch, lock.state.clone())
+                    (batch, lock.out.clone())
                 };
                 for candidate in batch {
-                    let new_result = match checker.check(candidate, &state) {
+                    let new_result = match problem.check(candidate, &out) {
                         None => continue,
                         Some(result) => result,
                     };
-                    state = new_result.clone();
-                    mutable.lock().unwrap().state = new_result.clone();
+                    out = new_result.clone();
+                    mutable.lock().unwrap().out = new_result.clone();
                     send.send(new_result).unwrap();
                 }
             });
@@ -68,41 +67,42 @@ where
     }
 }
 
-struct Mutable<S: spaces::Space, State> {
-    state: State,
+struct Mutable<S: spaces::Space, O> {
+    out: O,
     space: S,
 }
 
-pub trait Checker<C, S> {
-    fn check(&self, candidate: C, state: &S) -> Option<S>;
-}
+pub trait Problem {
+    type Space: spaces::Space;
+    type Out: Clone;
 
-impl<F, C, S> Checker<C, S> for F where F: Fn(C, &S) -> Option<S> {
-    fn check(&self, candidate: C, state: &S) -> Option<S> {
-        self(candidate, state)
-    }
+    fn check(
+        &self,
+        candidate: <<Self as Problem>::Space as spaces::Space>::Candidate,
+        latest_out: &<Self as Problem>::Out,
+    ) -> Option<Self::Out>;
 }
 
 pub mod spaces {
-    pub trait Space: Send {
+    pub trait Space {
         type Candidate;
 
         fn pluck(&mut self, n: usize) -> Option<Box<dyn Iterator<Item = Self::Candidate>>>;
     }
 
-    pub struct LinearSpace<T: Linear + Send> {
+    pub struct LinearSpace<T: Linear> {
         unchecked: T,
     }
 
-    impl<T: Linear + Send> LinearSpace<T> {
-        pub fn new() -> Self {
+    impl<T: Linear> Default for LinearSpace<T> {
+        fn default() -> Self {
             Self {
                 unchecked: T::start(),
             }
         }
     }
 
-    impl<T: Linear + Send> Space for LinearSpace<T> {
+    impl<T: Linear> Space for LinearSpace<T> {
         type Candidate = T;
 
         fn pluck(&mut self, n: usize) -> Option<Box<dyn Iterator<Item = T>>> {
@@ -131,10 +131,5 @@ pub mod spaces {
         fn iter_to(&self, next: &Self) -> Option<Box<dyn Iterator<Item = Self>>> {
             Some(Box::new((*self..*next).into_iter()))
         }
-    }
-
-    enum Range<T: Linear> {
-        Bounded(T, T),
-        StartingAt(T),
     }
 }

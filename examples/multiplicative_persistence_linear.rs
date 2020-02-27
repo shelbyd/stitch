@@ -1,7 +1,31 @@
 use std::error::Error;
 
 use stitches::spaces::LinearSpace;
-use stitches::Stitches;
+use stitches::{Problem, Stitches};
+
+struct MultiplicativePersistence;
+
+impl Problem for MultiplicativePersistence {
+    type Space = LinearSpace<u64>;
+    type Out = ResultsState;
+
+    fn check(&self, number: u64, results_state: &ResultsState) -> Option<ResultsState> {
+        let p = persistence(number);
+        if p > results_state.best_persistence {
+            Some(ResultsState {
+                best_persistence: p,
+                best_number: number,
+            })
+        } else if p == results_state.best_persistence && number < results_state.best_number {
+            Some(ResultsState {
+                best_persistence: p,
+                best_number: number,
+            })
+        } else {
+            None
+        }
+    }
+}
 
 #[derive(Debug, Default, Clone)]
 struct ResultsState {
@@ -23,25 +47,7 @@ fn persistence(n: u64) -> u8 {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let stitches = Stitches::new(
-        LinearSpace::<u64>::new(),
-        |number: u64, results_state: &ResultsState| {
-            let p = persistence(number);
-            if p > results_state.best_persistence {
-                Some(ResultsState {
-                    best_persistence: p,
-                    best_number: number,
-                })
-            } else if p == results_state.best_persistence && number < results_state.best_number {
-                Some(ResultsState {
-                    best_persistence: p,
-                    best_number: number,
-                })
-            } else {
-                None
-            }
-        },
-    );
+    let stitches = Stitches::new(MultiplicativePersistence);
 
     for result in stitches.results() {
         dbg!(result);
