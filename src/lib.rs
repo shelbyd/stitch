@@ -4,8 +4,7 @@ pub use tree_search::*;
 mod fast_deque;
 
 pub struct Stitches<S: spaces::Space, State, C> {
-    state: State,
-    space: S,
+    mutable: Mutable<S, State>,
     checker: C,
 }
 
@@ -18,8 +17,10 @@ where
         State: Default,
     {
         Stitches {
-            state: State::default(),
-            space,
+            mutable: Mutable {
+                state: State::default(),
+                space,
+            },
             checker,
         }
     }
@@ -28,28 +29,48 @@ where
     where
         State: Send + Clone + 'static,
         S: 'static,
-        C: Send + 'static,
+        C: Send + Sync + 'static,
     {
-        use std::sync::mpsc;
+        use std::sync::{mpsc, Arc, Mutex};
+
         let (send, recv) = mpsc::channel();
 
-        std::thread::spawn(move || loop {
-            let iter = match self.space.pluck(100) {
-                None => break,
-                Some(i) => i,
-            };
-            for candidate in iter {
-                let new_result = match self.checker.check(candidate, &self.state) {
-                    None => continue,
-                    Some(result) => result,
+        let mutable = Arc::new(Mutex::new(self.mutable));
+        let checker = Arc::new(self.checker);
+
+        for _ in 0..num_cpus::get() {
+            let mutable = mutable.clone();
+            let send = send.clone();
+            let checker = checker.clone();
+
+            std::thread::spawn(move || loop {
+                let (batch, mut state) = {
+                    let mut lock = mutable.lock().unwrap();
+                    let batch = match lock.space.pluck(100) {
+                        None => break,
+                        Some(i) => i,
+                    };
+                    (batch, lock.state.clone())
                 };
-                self.state = new_result.clone();
-                send.send(new_result).unwrap();
-            }
-        });
+                for candidate in batch {
+                    let new_result = match checker.check(candidate, &state) {
+                        None => continue,
+                        Some(result) => result,
+                    };
+                    state = new_result.clone();
+                    mutable.lock().unwrap().state = new_result.clone();
+                    send.send(new_result).unwrap();
+                }
+            });
+        }
 
         recv.into_iter()
     }
+}
+
+struct Mutable<S: spaces::Space, State> {
+    state: State,
+    space: S,
 }
 
 pub trait Checker<C, S> {

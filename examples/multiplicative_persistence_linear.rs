@@ -11,7 +11,8 @@ struct ResultsState {
 
 fn persistence(n: u64) -> u8 {
     let digits = n.to_string();
-    let product: u64 = digits.chars()
+    let product: u64 = digits
+        .chars()
         .map(|d| d.to_digit(10).unwrap() as u64)
         .fold(1, |acc, d| acc * d);
     if product == n {
