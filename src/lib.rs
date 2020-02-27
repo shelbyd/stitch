@@ -56,11 +56,12 @@ impl<P: Problem, R: Reporter<P>> Stitches<P, R> {
             let send = send.clone();
             let problem = problem.clone();
             let stats = stats.clone();
+            let mut batch_size_optimizer = BatchSizeOptimizer::new(Duration::from_millis(10));
 
             std::thread::spawn(move || loop {
                 let (batch, mut out) = {
                     let mut lock = mutable.lock().unwrap();
-                    let batch = match lock.space.batch(100) {
+                    let batch = match lock.space.batch(batch_size_optimizer.next_batch()) {
                         None => break,
                         Some(i) => i,
                     };
@@ -134,6 +135,34 @@ impl Stats {
 
     pub fn throughput(&self) -> f64 {
         self.count.0.get() as f64 / self.recording_since.elapsed().as_secs_f64()
+    }
+}
+
+struct BatchSizeOptimizer {
+    target: Duration,
+    last_batch: Option<(Instant, usize)>,
+}
+
+impl BatchSizeOptimizer {
+    fn new(target: Duration) -> Self {
+        BatchSizeOptimizer {
+            target,
+            last_batch: None,
+        }
+    }
+
+    fn next_batch(&mut self) -> usize {
+        let batch_size = match self.last_batch {
+            None => 100,
+            Some((at, size)) => match at.elapsed().cmp(&self.target) {
+                std::cmp::Ordering::Less => size * 101 / 100,
+                std::cmp::Ordering::Equal => size,
+                std::cmp::Ordering::Greater => size * 99 / 100,
+            },
+        };
+        let batch_size = std::cmp::max(batch_size, 1);
+        self.last_batch = Some((Instant::now(), batch_size));
+        batch_size
     }
 }
 
