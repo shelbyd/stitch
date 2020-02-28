@@ -35,7 +35,7 @@ impl Problem for MultiplicativePersistence {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 struct ResultsState {
     best_persistence: u8,
     best_number: usize,

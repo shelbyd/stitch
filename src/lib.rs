@@ -60,7 +60,7 @@ impl<P: Problem, R: Reporter<P>> Stitches<P, R> {
             let mut batch_size_optimizer = BatchSizeOptimizer::new(Duration::from_millis(10));
 
             std::thread::spawn(move || loop {
-                let (batch, mut out) = {
+                let (batch, out) = {
                     let mut lock = mutable.lock().unwrap();
                     let batch = match lock.space.batch(batch_size_optimizer.next_batch()) {
                         None => break,
@@ -69,13 +69,11 @@ impl<P: Problem, R: Reporter<P>> Stitches<P, R> {
                     lock.stats.count += batch.len();
                     (batch, lock.out.clone())
                 };
-                for candidate in batch {
-                    let result = problem.check(candidate, &out);
-                    let new_result = match result {
-                        None => continue,
-                        Some(result) => result,
-                    };
-                    out = new_result.clone();
+
+                let new_result = batch.fold(out.clone(), |last, candidate| {
+                    problem.check(candidate, &last).unwrap_or(last)
+                });
+                if new_result != out {
                     mutable.lock().unwrap().out = new_result.clone();
                     send.send(new_result).unwrap();
                 }
@@ -105,7 +103,7 @@ struct Mutable<S: spaces::Space, O> {
 
 pub trait Problem {
     type Space: spaces::Space;
-    type Out: Clone;
+    type Out: Clone + Eq;
 
     fn initial_space(&mut self) -> Self::Space;
 

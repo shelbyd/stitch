@@ -5,7 +5,7 @@ use stitches::{Problem, StdoutReporter, Stitches};
 
 struct Null;
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct Number(Option<usize>);
 
 impl Problem for Null {
