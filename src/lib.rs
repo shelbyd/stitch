@@ -1,6 +1,5 @@
 #![feature(step_trait)]
 
-use metered::{clear::Clear, measure, HitCount};
 use std::cell::Cell;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
