@@ -42,16 +42,20 @@ struct ResultsState {
 }
 
 fn persistence(n: u64) -> u8 {
+    if n < 10 {
+        return 0;
+    }
+
     let digits = n.to_string();
+    if digits.chars().any(|c| c == '0') {
+        return 1;
+    }
+
     let product: u64 = digits
         .chars()
-        .map(|d| d.to_digit(10).unwrap() as u64)
-        .fold(1, |acc, d| acc * d);
-    if product == n {
-        0
-    } else {
-        1 + persistence(product)
-    }
+        .map(|d| d as u32 - '0' as u32)
+        .fold(1, |acc, d| acc * (d as u64));
+    1 + persistence(product)
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
