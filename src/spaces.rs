@@ -76,17 +76,21 @@ impl<T> MyRangeInclusive<T> {
 impl<T: Clone + std::iter::Step> std::iter::Iterator for MyRangeInclusive<T> {
     type Item = T;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        if self.done {
-            return None;
+        if self.start < self.end {
+            let n = self.start.add_one();
+            Some(std::mem::replace(&mut self.start, n))
+        } else {
+            // None
+            // debug_assert!(self.start == self.end);
+            if self.done {
+                None
+            } else {
+                self.done = true;
+                Some(self.end.clone())
+            }
         }
-        if self.start == self.end {
-            self.done = true;
-            return Some(self.end.clone());
-        }
-
-        let n = self.start.add_one();
-        Some(std::mem::replace(&mut self.start, n))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
