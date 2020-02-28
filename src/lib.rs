@@ -1,6 +1,8 @@
 #![feature(step_trait)]
 
 use metered::{clear::Clear, measure, HitCount};
+use std::cell::Cell;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 pub mod reporter;
@@ -40,7 +42,7 @@ impl<P: Problem, R: Reporter<P>> Stitches<P, R> {
         R: Send + 'static,
     {
         use spaces::Space;
-        use std::sync::{mpsc, Arc, Mutex};
+        use std::sync::{mpsc, Arc};
 
         let (send, recv) = mpsc::channel();
 
@@ -81,7 +83,6 @@ impl<P: Problem, R: Reporter<P>> Stitches<P, R> {
         }
 
         std::thread::spawn(move || {
-            let stats = stats.clone();
             let mut reporter = reporter;
             let mutable = mutable.clone();
             loop {
@@ -116,14 +117,14 @@ pub trait Problem {
 
 #[derive(Debug)]
 pub struct Stats {
-    recording_since: Instant,
+    recording_since: Mutex<Cell<Instant>>,
     count: HitCount,
 }
 
 impl Default for Stats {
     fn default() -> Self {
         Stats {
-            recording_since: Instant::now(),
+            recording_since: Mutex::new(Cell::new(Instant::now())),
             count: HitCount::default(),
         }
     }
@@ -132,10 +133,12 @@ impl Default for Stats {
 impl Stats {
     fn clear(&self) {
         self.count.clear();
+        self.recording_since.lock().unwrap().set(Instant::now());
     }
 
     pub fn throughput(&self) -> f64 {
-        self.count.0.get() as f64 / self.recording_since.elapsed().as_secs_f64()
+        let duration_since_read = self.recording_since.lock().unwrap().get().elapsed();
+        self.count.0.get() as f64 / duration_since_read.as_secs_f64()
     }
 }
 
