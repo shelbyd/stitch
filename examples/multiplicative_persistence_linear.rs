@@ -7,8 +7,8 @@ struct MultiplicativePersistence;
 
 impl Problem for MultiplicativePersistence {
     // Uncomment for limiting time for profiling.
-    // type Space = stitches::spaces::TimeLimited<LinearSpace<u64>>;
-    type Space = LinearSpace<u64>;
+    // type Space = stitches::spaces::TimeLimited<LinearSpace<usize>>;
+    type Space = LinearSpace<usize>;
     type Out = ResultsState;
 
     fn initial_space(&mut self) -> Self::Space {
@@ -17,7 +17,7 @@ impl Problem for MultiplicativePersistence {
         LinearSpace::default()
     }
 
-    fn check(&self, number: u64, results_state: &ResultsState) -> Option<ResultsState> {
+    fn check(&self, number: usize, results_state: &ResultsState) -> Option<ResultsState> {
         let p = persistence(number);
         if p > results_state.best_persistence {
             Some(ResultsState {
@@ -38,10 +38,10 @@ impl Problem for MultiplicativePersistence {
 #[derive(Debug, Default, Clone)]
 struct ResultsState {
     best_persistence: u8,
-    best_number: u64,
+    best_number: usize,
 }
 
-fn persistence(n: u64) -> u8 {
+fn persistence(n: usize) -> u8 {
     if n < 10 {
         return 0;
     }
@@ -51,10 +51,10 @@ fn persistence(n: u64) -> u8 {
         return 1;
     }
 
-    let product: u64 = digits
+    let product: usize = digits
         .chars()
         .map(|d| d as u32 - '0' as u32)
-        .fold(1, |acc, d| acc * (d as u64));
+        .fold(1, |acc, d| acc * (d as usize));
     1 + persistence(product)
 }
 

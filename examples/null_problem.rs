@@ -6,18 +6,25 @@ use stitches::{Problem, StdoutReporter, Stitches};
 struct Null;
 
 #[derive(Clone, Copy, Debug, Default)]
-struct Number(Option<u64>);
+struct Number(Option<usize>);
 
 impl Problem for Null {
-    type Space = LinearSpace<u64>;
+    // Uncomment for limiting time for profiling.
+    // type Space = stitches::spaces::TimeLimited<LinearSpace<usize>>;
+    type Space = LinearSpace<usize>;
     type Out = Number;
 
     fn initial_space(&mut self) -> Self::Space {
-        LinearSpace::new(4125929382)
+        // Uncomment for limiting time for profiling.
+        // stitches::spaces::TimeLimited::new(
+        //     std::time::Duration::from_secs(10),
+        //     LinearSpace::default(),
+        // )
+        LinearSpace::default()
     }
 
-    fn check(&self, number: u64, last_out: &Number) -> Option<Number> {
-        if number == std::u64::MAX {
+    fn check(&self, number: usize, last_out: &Number) -> Option<Number> {
+        if bencher::black_box(number) == std::usize::MAX {
             Some(Number(Some(number)))
         } else {
             None

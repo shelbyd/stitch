@@ -28,6 +28,7 @@ impl<P: Problem, R: Reporter<P>> Stitches<P, R> {
             mutable: Mutable {
                 space: problem.initial_space(),
                 out: P::Out::default(),
+                stats: Stats::default(),
             },
             problem,
             reporter,
@@ -50,13 +51,10 @@ impl<P: Problem, R: Reporter<P>> Stitches<P, R> {
         let problem = Arc::new(self.problem);
         let reporter = self.reporter;
 
-        let stats = Arc::new(Stats::default());
-
         for _ in 0..num_cpus::get() {
             let mutable = mutable.clone();
             let send = send.clone();
             let problem = problem.clone();
-            let stats = stats.clone();
             let mut batch_size_optimizer = BatchSizeOptimizer::new(Duration::from_millis(10));
 
             std::thread::spawn(move || loop {
@@ -66,11 +64,11 @@ impl<P: Problem, R: Reporter<P>> Stitches<P, R> {
                         None => break,
                         Some(i) => i,
                     };
+                    lock.stats.count += batch.len();
                     (batch, lock.out.clone())
                 };
                 for candidate in batch {
-                    let count = &stats.count;
-                    let result = measure!(count, { problem.check(candidate, &out) });
+                    let result = problem.check(candidate, &out);
                     let new_result = match result {
                         None => continue,
                         Some(result) => result,
@@ -87,9 +85,9 @@ impl<P: Problem, R: Reporter<P>> Stitches<P, R> {
             let mutable = mutable.clone();
             loop {
                 std::thread::sleep(Duration::from_secs(1));
-                let locked = mutable.lock().unwrap();
-                reporter.report_on(&locked.space, &locked.out, &stats);
-                stats.clear();
+                let mut locked = mutable.lock().unwrap();
+                reporter.report_on(&locked.space, &locked.out, &locked.stats);
+                locked.stats.clear();
             }
         });
 
@@ -100,6 +98,7 @@ impl<P: Problem, R: Reporter<P>> Stitches<P, R> {
 struct Mutable<S: spaces::Space, O> {
     out: O,
     space: S,
+    stats: Stats,
 }
 
 pub trait Problem {
@@ -118,27 +117,27 @@ pub trait Problem {
 #[derive(Debug)]
 pub struct Stats {
     recording_since: Mutex<Cell<Instant>>,
-    count: HitCount,
+    count: usize,
 }
 
 impl Default for Stats {
     fn default() -> Self {
         Stats {
             recording_since: Mutex::new(Cell::new(Instant::now())),
-            count: HitCount::default(),
+            count: 0,
         }
     }
 }
 
 impl Stats {
-    fn clear(&self) {
-        self.count.clear();
+    fn clear(&mut self) {
+        self.count = 0;
         self.recording_since.lock().unwrap().set(Instant::now());
     }
 
     pub fn throughput(&self) -> f64 {
         let duration_since_read = self.recording_since.lock().unwrap().get().elapsed();
-        self.count.0.get() as f64 / duration_since_read.as_secs_f64()
+        self.count as f64 / duration_since_read.as_secs_f64()
     }
 }
 
@@ -174,7 +173,7 @@ pub mod spaces {
     use std::time::{Duration, Instant};
 
     pub trait Space {
-        type Batch: IntoIterator;
+        type Batch: ExactSizeIterator;
 
         fn batch(&mut self, n: usize) -> Option<Self::Batch>;
     }
@@ -193,6 +192,7 @@ pub mod spaces {
     impl<T> Space for LinearSpace<T>
     where
         T: Clone + std::iter::Step,
+        core::ops::Range<T>: ExactSizeIterator,
     {
         type Batch = core::ops::Range<T>;
 
