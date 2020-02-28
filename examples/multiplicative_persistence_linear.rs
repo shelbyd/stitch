@@ -6,8 +6,16 @@ use stitches::{Problem, StdoutReporter, Stitches};
 struct MultiplicativePersistence;
 
 impl Problem for MultiplicativePersistence {
+    // Uncomment for limiting time for profiling.
+    // type Space = stitches::spaces::TimeLimited<LinearSpace<u64>>;
     type Space = LinearSpace<u64>;
     type Out = ResultsState;
+
+    fn initial_space(&mut self) -> Self::Space {
+        // Uncomment for limiting time for profiling.
+        // stitches::spaces::TimeLimited::new(std::time::Duration::from_secs(10), LinearSpace::default())
+        LinearSpace::default()
+    }
 
     fn check(&self, number: u64, results_state: &ResultsState) -> Option<ResultsState> {
         let p = persistence(number);

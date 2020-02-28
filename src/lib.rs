@@ -18,14 +18,13 @@ pub struct Stitches<P: Problem, R: Reporter<P>> {
 }
 
 impl<P: Problem, R: Reporter<P>> Stitches<P, R> {
-    pub fn new(problem: P, reporter: R) -> Self
+    pub fn new(mut problem: P, reporter: R) -> Self
     where
-        P::Space: Default,
         P::Out: Default,
     {
         Stitches {
             mutable: Mutable {
-                space: P::Space::default(),
+                space: problem.initial_space(),
                 out: P::Out::default(),
             },
             problem,
@@ -106,6 +105,8 @@ pub trait Problem {
     type Space: spaces::Space;
     type Out: Clone;
 
+    fn initial_space(&mut self) -> Self::Space;
+
     fn check(
         &self,
         candidate: <<<Self as Problem>::Space as spaces::Space>::Batch as IntoIterator>::Item,
@@ -167,6 +168,8 @@ impl BatchSizeOptimizer {
 }
 
 pub mod spaces {
+    use std::time::{Duration, Instant};
+
     pub trait Space {
         type Batch: IntoIterator;
 
@@ -189,6 +192,37 @@ pub mod spaces {
             let result = self.unchecked.clone()..next.clone();
             self.unchecked = next;
             Some(result)
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct TimeLimited<S: Space> {
+        space: S,
+        first_batch: Option<Instant>,
+        limit: Duration,
+    }
+
+    impl<S: Space> TimeLimited<S> {
+        pub fn new(limit: Duration, space: S) -> Self {
+            TimeLimited {
+                limit,
+                space,
+                first_batch: None,
+            }
+        }
+    }
+
+    impl<S: Space> Space for TimeLimited<S> {
+        type Batch = S::Batch;
+
+        fn batch(&mut self, n: usize) -> Option<Self::Batch> {
+            if let None = self.first_batch {
+                self.first_batch = Some(Instant::now());
+            }
+            if self.first_batch.unwrap().elapsed() > self.limit {
+                return None;
+            }
+            self.space.batch(n)
         }
     }
 }
