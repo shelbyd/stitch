@@ -181,6 +181,12 @@ pub mod spaces {
         unchecked: T,
     }
 
+    impl<T> LinearSpace<T> {
+        pub fn new(start: T) -> Self {
+            LinearSpace { unchecked: start }
+        }
+    }
+
     impl<T> Space for LinearSpace<T>
     where
         T: Clone + std::iter::Step,
