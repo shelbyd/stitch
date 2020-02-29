@@ -116,14 +116,14 @@ pub trait Problem {
 
 #[derive(Debug)]
 pub struct Stats {
-    recording_since: Mutex<Cell<Instant>>,
+    recording_since: Instant,
     count: usize,
 }
 
 impl Default for Stats {
     fn default() -> Self {
         Stats {
-            recording_since: Mutex::new(Cell::new(Instant::now())),
+            recording_since: Instant::now(),
             count: 0,
         }
     }
@@ -132,11 +132,11 @@ impl Default for Stats {
 impl Stats {
     fn clear(&mut self) {
         self.count = 0;
-        self.recording_since.lock().unwrap().set(Instant::now());
+        self.recording_since = Instant::now();
     }
 
     pub fn throughput(&self) -> f64 {
-        let duration_since_read = self.recording_since.lock().unwrap().get().elapsed();
+        let duration_since_read = self.recording_since.elapsed();
         self.count as f64 / duration_since_read.as_secs_f64()
     }
 }
